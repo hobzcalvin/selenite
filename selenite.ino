@@ -113,7 +113,7 @@ void loop() {
     if (shortPressed) {
       if (DEBUG) { Serial.print("short........................."); }
       byte bright = FastLED.getBrightness();
-      bright = bright ? (bright >= 31 ? bright >> 1 : 0) : 255;
+      bright = bright ? (bright >= 31 ? bright >> 1 : 0) : 127;
       //Serial.println(bright);
       FastLED.setBrightness(bright);
       shortPressed = false;
