@@ -3,11 +3,11 @@
 
 #define CAPACITIVE_SEND 22
 #define CAPACITIVE_RECEIVE 23
-#define CAPACITIVE_SAMPLES 30
-#define CAPACITIVE_THRESHOLD 5000
+#define CAPACITIVE_SAMPLES 100
+#define CAPACITIVE_THRESHOLD 20000
 #define LONG_PRESS_MS 500
 
-#define DEBUG false
+#define DEBUG true
 
 #define FPS 60
 #define DATA_PIN    2
@@ -25,7 +25,6 @@ bool longRegistered = false;
 bool longPressed = false;
 // if true, there's a short press that needs handling.
 bool shortPressed = false;
-long recentCS = 0;
 
 byte mode = 0;
 bool newMode = false;
@@ -38,15 +37,6 @@ void setup() {
   FastLED.addLeds<LED_TYPE,DATA_PIN,COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
   //FastLED.setMaxPowerInVoltsAndMilliamps(5,2000); 
   FastLED.setBrightness(63);
-
-  // Initialize the capacitive environment for a while.
-  recentCS = 0;
-  int i;
-  for (i = 0; i < 20; i++) {
-    recentCS += cs.capacitiveSensor(CAPACITIVE_SAMPLES);
-    delay(10);
-  }
-  recentCS /= i;
 }
 
 void loop() {
@@ -57,8 +47,24 @@ void loop() {
     fill_solid(leds, NUM_LEDS, CHSV(50, 180, 255));   
   } else if (mode == 1) {
     fill_rainbow(leds, NUM_LEDS, millis() >> 4, 2);
-  //} else if (mode == 2) {
-    // START HERE
+  } else if (mode == 2) {
+    for (int i = 0; i < NUM_LEDS / 2; i++) {
+      for (byte up = 0; up < 2; up++) {
+        byte pix = up ? NUM_LEDS - i - 1 : i;
+        int hue = 30 + (inoise8(millis() >> 2, ((i << 5) + 1000) * (up ? 1 : -1), 0) >> 3);
+        int sat = 255;//255 - inoise8(millis(), up * 3000, 10000) >> 4;
+        int bright = 255 - (inoise8(millis() >> 2, ((i << 5) + 1000) * (up ? 1 : -1), 10000) >> 1);
+        if (DEBUG && pix == 0) {
+          Serial.print("HSB\t");
+          Serial.print(hue);
+          Serial.print("\t");
+          Serial.print(sat);
+          Serial.print("\t");
+          Serial.println(bright);
+        }
+        leds[pix] = CHSV(hue, sat, bright);
+      }
+    }
   } else {
     mode = 0;
   }
@@ -66,25 +72,15 @@ void loop() {
   newMode = false;
 
 
-  EVERY_N_MILLISECONDS(10) {
+  EVERY_N_MILLISECONDS(50) {
     long cap = cs.capacitiveSensor(CAPACITIVE_SAMPLES);
     // Are we pressed right now?
-    bool pressed = cap / recentCS > 5;// = cap > CAPACITIVE_THRESHOLD;
-    if (DEBUG) { Serial.print(cap); Serial.print(" "); Serial.print(recentCS); Serial.print(" "); Serial.print(cap / recentCS); Serial.print(pressed ? "Y " : "N "); }
-    if (!pressed) {
-      recentCS = (9*recentCS + cap) / 10;
-    }
-    /*if (pressedStart) {
-      // We were pressed before, so we're looking for a decline in the capacitive value.
-      pressed = recentCS / cap > 3;
-    } else {
-      pressed = cap / recentCS > 3;
-    }*/
-    if (DEBUG) { Serial.print(pressed); Serial.print(" "); }
+    bool pressed = cap > CAPACITIVE_THRESHOLD;
+    //if (DEBUG) { Serial.print(cap); Serial.print(" "); Serial.print(pressed ? "Y " : "N "); }
     // If we're pressed and this is the start, remember start time.
     if (pressed && !pressedStart) {
       pressedStart = millis();
-      if (DEBUG) { Serial.print("PS "); }
+      //if (DEBUG) { Serial.print("PS "); }
     } else if (pressedStart) {
       // We're already pressed. Have we passed the LONG_PRESS_MS threshold?
       if (millis() - pressedStart > LONG_PRESS_MS) {
@@ -111,7 +107,7 @@ void loop() {
     // Keep this separate from the logic above, but it could actually go right in
     // there to avoid the use of shortPressed.
     if (shortPressed) {
-      if (DEBUG) { Serial.print("short........................."); }
+      if (DEBUG) { Serial.print("\nshort.........................\n"); }
       byte bright = FastLED.getBrightness();
       bright = bright ? (bright >= 31 ? bright >> 1 : 0) : 127;
       //Serial.println(bright);
@@ -120,12 +116,12 @@ void loop() {
     }
     // Similarly, keep this logic separate
     if (longPressed) {
-      if (DEBUG) { Serial.print("LONG!!!!!!!!!!!!!!!!!!!!!!"); }
+      if (DEBUG) { Serial.print("\nLONG!!!!!!!!!!!!!!!!!!!!!!\n"); }
       newMode = true;
       longPressed = false;
     }
 
-    if (DEBUG) { Serial.println(); }
+    //if (DEBUG) { Serial.println(); }
   }
 }
 
